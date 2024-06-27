@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import React, { useState, useRef, useEffect } from 'react';
 import { AlertCircle, Download, ChevronDown, ChevronUp, Plus, Copy, Check, Moon, Sun, ArrowUp, ArrowDown, Trash, X } from 'lucide-react';
@@ -269,8 +269,14 @@ const Switch = React.forwardRef<
 ))
 Switch.displayName = SwitchPrimitive.Root.displayName
 
+
+
+
+import { useTheme } from "next-themes"
+
 // Main Component
 const JSONLEditor = () => {
+  const { theme, setTheme } = useTheme()
   const [jsonlContent, setJsonlContent] = useState('');
   const [parsedContent, setParsedContent] = useState<any[]>([]);
   const [error, setError] = useState('');
@@ -363,26 +369,22 @@ const JSONLEditor = () => {
     const latestMessages = [];
     let lastUserIndex = messages.length - 1;
   
-    // Find the last user message
-    while (lastUserIndex >= 0 && messages[lastUserIndex].role !== 'user') {
+    // Find the last user message that is not immediately preceded by another user message
+    while (lastUserIndex > 0 && messages[lastUserIndex].role !== 'user') {
+      lastUserIndex--;
+    }
+    while (lastUserIndex > 0 && messages[lastUserIndex - 1].role === 'user') {
       lastUserIndex--;
     }
   
-    // Add messages from the last non-consecutive user message to the end
-    let consecutiveUserMessages = 0;
-    for (let i = lastUserIndex; i >= 0; i--) {
-      if (messages[i].role === 'user') {
-        consecutiveUserMessages++;
-        latestMessages.unshift(messages[i]);
-        if (i > 0 && messages[i-1].role !== 'user') break;
-      } else {
-        latestMessages.unshift(messages[i]);
-        consecutiveUserMessages = 0;
-      }
+    // Add messages from the identified last user message to the end
+    for (let i = lastUserIndex; i < messages.length; i++) {
+      latestMessages.push(messages[i]);
     }
   
     return latestMessages;
   };
+  
 
   const addCustomRole = () => {
     if (newCustomRole && !roleFilters.hasOwnProperty(newCustomRole)) {
@@ -453,29 +455,23 @@ const JSONLEditor = () => {
   })).filter(item => item.messages.length > 0);
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground">
-    <div className="container mx-auto p-4">
-   
+    <div className="min-h-screen w-full bg-background text-foreground p-4">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex-grow text-center">
+          <h1 className="text-2xl font-bold">JSONL ChatML Editor</h1>
+        </div>
+        <div className="flex items-center space-x-2">
+          {/* <Sun className="h-4 w-4" /> */}
+          <Switch
+            checked={theme === "dark"}
+            onCheckedChange={() => setTheme(theme === "dark" ? "light" : "dark")}
+            aria-label="Toggle dark mode"
+          />
+          <Moon className="h-4 w-4" />
+        </div>
+      </div>
 
 
-
-    <div className={`container mx-auto p-4 ${darkMode ? 'dark' : ''} bg-white dark:bg-gray-900 text-black dark:text-white`}>
-
-
-    <div className="flex justify-between items-center mb-4">
-  <div className="flex-grow">
-    <h1 className="text-2xl font-bold text-center">JSONL ChatML Editor</h1>
-  </div>
-  <div className="flex items-center space-x-2">
-    <Sun className="h-4 w-4" />
-    <Switch
-      checked={darkMode}
-      onCheckedChange={setDarkMode}
-      aria-label="Toggle dark mode"
-    />
-    <Moon className="h-4 w-4" />
-  </div>
-</div>
 
       <div className="mb-4">
         <textarea
@@ -542,31 +538,32 @@ const JSONLEditor = () => {
         </div>
       </div>
       <div className="mb-4">
-        <h2 className="text-xl font-semibold mb-2">Parsed Content:</h2>
-        <div className="bg-gray-100 p-4 rounded dark:bg-gray-800">
-          {filteredContent.slice(0, visibleItems).map((item) => (
-            <div key={item.itemIndex} className="mb-2 bg-white rounded shadow dark:bg-gray-700">
-              <div className="flex justify-between items-center p-2 border-b dark:border-gray-600">
-                <h3 className="text-lg font-bold">{item.itemIndex + 1}</h3>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleItemExpansion(item.itemIndex)}
-                    className="dark:text-white"
-                  >
-                    {expandedItems[item.itemIndex] ? <ChevronUp /> : <ChevronDown />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteItem(item.itemIndex)}
-                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-600"
-                  >
-                    <Trash className="h-4 w-4" />
-                  </Button>
-                </div>
+      <h2 className="text-xl font-semibold mb-2">Parsed Content:</h2>
+      <div className="bg-gray-100 p-4 rounded dark:bg-gray-800">
+        {filteredContent.slice(0, visibleItems).map((item) => (
+          <div key={item.itemIndex} className="mb-2 bg-white rounded shadow dark:bg-gray-700">
+            <div className="flex justify-between items-center p-2 border-b dark:border-gray-600">
+              <h3 className="text-lg font-bold">{item.itemIndex + 1}</h3>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleItemExpansion(item.itemIndex)}
+                  className="dark:text-white"
+                >
+                  {expandedItems[item.itemIndex] ? <ChevronUp /> : <ChevronDown />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => deleteItem(item.itemIndex)}
+                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-600"
+                >
+                  <Trash className="h-4 w-4" />
+                </Button>
               </div>
+            </div>
+            {expandedItems[item.itemIndex] && (
               <div className="p-2">
                 {item.messages.map((msg: any, msgIndex: number) => (
                   <div key={msgIndex} className="mb-2 border-b pb-2 last:border-b-0 last:pb-0">
@@ -631,13 +628,14 @@ const JSONLEditor = () => {
                   <Plus className="mr-2 h-4 w-4" /> Add Message
                 </Button>
               </div>
-            </div>
-          ))}
-          {visibleItems < filteredContent.length && (
-            <div ref={observerRef} className="h-10" />
-          )}
-        </div>
+            )}
+          </div>
+        ))}
+        {visibleItems < filteredContent.length && (
+          <div ref={observerRef} className="h-10" />
+        )}
       </div>
+    </div>
       <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
         <DialogTrigger asChild>
           <Button
@@ -683,8 +681,8 @@ const JSONLEditor = () => {
         </DialogContent>
       </Dialog>
     </div>
-    </div>
-    </div>
+    // </div>
+    // </div>
   );
 };
 
