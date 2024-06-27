@@ -5,6 +5,23 @@
 
 ### =======================================
 
+### to serve it locally:
+
+```
+npm run build
+cd out
+http-server -p 8080
+```
+
+
+### tips:
+- clear between npm run build runs `rm -rf .next out`
+- cd into /out & serve from there e.g. http-server 
+- clear browser cache/use new incognito window (else may not update e.g. whats rendered via your url)
+
+
+
+
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started
