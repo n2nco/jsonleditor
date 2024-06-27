@@ -334,19 +334,83 @@ const JSONLEditor = () => {
   const parseJSONL = (content: string) => {
     try {
       const lines = content.trim().split('\n');
-      const parsed = lines.map(line => JSON.parse(line));
+      const parsed = lines.map(line => {
+        const item = JSON.parse(line);
+        if (item.conversations) {
+          return {
+            messages: item.conversations.map((conv: any) => ({
+              role: conv.from || conv.role,
+              content: conv.value || conv.content,
+            }))
+          };
+        } else if (item.messages) {
+          return {
+            messages: item.messages.map((msg: any) => ({
+              role: msg.role || msg.from,
+              content: msg.content || msg.value,
+            }))
+          };
+        } else {
+          throw new Error('Invalid structure');
+        }
+      });
+  
       setParsedContent(parsed);
       setError('');
     } catch (err) {
       setError('Error parsing JSONL: ' + (err as Error).message);
     }
   };
-
+  
+  
+  
+  
+  
+  
+  const parseJSON = (content: string) => {
+    try {
+      const parsed = JSON.parse(content);
+      let transformed = [];
+  
+      if (parsed.conversations) {
+        transformed = parsed.conversations.map((conv: any) => ({
+          messages: [{ role: conv.from || conv.role, content: conv.value || conv.content }]
+        }));
+      } else if (parsed.messages) {
+        transformed = [{ messages: parsed.messages }];
+      } else {
+        setError('Error parsing JSON: Invalid structure');
+        return;
+      }
+  
+      setParsedContent(transformed);
+      setError('');
+    } catch (err) {
+      setError('Error parsing JSON: ' + (err as Error).message);
+    }
+  };
+  
+  
+  
+  
+  
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const content = e.target.value;
     setJsonlContent(content);
-    parseJSONL(content);
+  
+    // Check if the content is a single valid JSON object
+    try {
+      const parsed = JSON.parse(content);
+      parseJSON(content);
+    } catch (jsonError) {
+      // If JSON parsing fails, assume it's JSONL and try to parse it
+      parseJSONL(content);
+    }
   };
+  
+  
+  
+  
 
   const handleExport = () => {
     try {
@@ -366,26 +430,24 @@ const JSONLEditor = () => {
       setTimeout(() => setIsCopied(false), 2000);
     }
   };
+
   const getLatestMessages = (messages: any[]) => {
     const latestMessages = [];
     let lastUserIndex = messages.length - 1;
-  
-    // Find the last user message that is not immediately preceded by another user message
+
     while (lastUserIndex > 0 && messages[lastUserIndex].role !== 'user') {
       lastUserIndex--;
     }
     while (lastUserIndex > 0 && messages[lastUserIndex - 1].role === 'user') {
       lastUserIndex--;
     }
-  
-    // Add messages from the identified last user message to the end
+
     for (let i = lastUserIndex; i < messages.length; i++) {
       latestMessages.push(messages[i]);
     }
-  
+
     return latestMessages;
   };
-  
 
   const addCustomRole = () => {
     if (newCustomRole && !roleFilters.hasOwnProperty(newCustomRole)) {
@@ -454,6 +516,7 @@ const JSONLEditor = () => {
           return roleMatch && searchMatch && firstMessageMatch;
         })
   })).filter(item => item.messages.length > 0);
+  
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground p-4">
@@ -462,7 +525,7 @@ const JSONLEditor = () => {
           <h1 className="text-2xl font-bold">JSONL ChatML Editor</h1>
         </div>
         <div className="flex items-center space-x-2">
-          {/* <Sun className="h-4 w-4" /> */}
+          <Sun className="h-4 w-4" />
           <Switch
             checked={theme === "dark"}
             onCheckedChange={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -472,16 +535,20 @@ const JSONLEditor = () => {
         </div>
       </div>
 
-
-
       <div className="mb-4">
-        <textarea
-          className="w-full h-40 p-2 border border-gray-300 rounded hover:border-blue-500 focus:border-blue-500 focus:outline-none transition duration-200 dark:bg-gray-800 dark:text-white dark:border-gray-600"
-          value={jsonlContent}
-          onChange={handleInputChange}
-          placeholder="Paste your JSONL content here..."
-        />
-      </div>
+  <textarea
+    className="w-full h-40 p-2 border border-gray-300 rounded hover:border-blue-500 focus:border-blue-500 focus:outline-none transition duration-200 dark:bg-gray-800 dark:text-white dark:border-gray-600"
+    value={jsonlContent}
+    onChange={handleInputChange}
+    placeholder="Paste your JSONL or JSON content here..."
+  />
+  <Button onClick={() => handleInputChange({ target: { value: jsonlContent } } as React.ChangeEvent<HTMLTextAreaElement>)}>
+    Reapply
+  </Button>
+</div>
+
+
+
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
@@ -490,30 +557,30 @@ const JSONLEditor = () => {
         </Alert>
       )}
       <div className="mb-4 space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <span>Show roles:</span>
-        {Object.keys(roleFilters).map(role => (
-          <label key={role} className="flex items-center space-x-2">
-            <Checkbox
-              checked={roleFilters[role as keyof typeof roleFilters]}
-              onCheckedChange={(checked) => setRoleFilters(prev => ({ ...prev, [role]: checked === true }))}
+        <div className="flex flex-wrap items-center gap-4">
+          <span>Show roles:</span>
+          {Object.keys(roleFilters).map(role => (
+            <label key={role} className="flex items-center space-x-2">
+              <Checkbox
+                checked={roleFilters[role as keyof typeof roleFilters]}
+                onCheckedChange={(checked) => setRoleFilters(prev => ({ ...prev, [role]: checked === true }))}
+              />
+              <span>{role}</span>
+            </label>
+          ))}
+          <div className="flex items-center space-x-2 ml-auto">
+            <Input
+              type="text"
+              placeholder="Add custom role"
+              value={newCustomRole}
+              onChange={(e) => setNewCustomRole(e.target.value)}
+              className="max-w-xs dark:bg-gray-700 dark:text-white"
             />
-            <span>{role}</span>
-          </label>
-        ))}
-        <div className="flex items-center space-x-2 ml-auto">
-          <Input
-            type="text"
-            placeholder="Add custom role"
-            value={newCustomRole}
-            onChange={(e) => setNewCustomRole(e.target.value)}
-            className="max-w-xs dark:bg-gray-700 dark:text-white"
-          />
-          <Button onClick={addCustomRole} size="sm">
-            <Plus className="h-4 w-2" />
-          </Button>
+            <Button onClick={addCustomRole} size="sm">
+              <Plus className="h-4 w-2" />
+            </Button>
+          </div>
         </div>
-      </div>
         <div className="flex items-center space-x-4">
           <label className="flex items-center space-x-2">
             <Checkbox
@@ -539,158 +606,157 @@ const JSONLEditor = () => {
         </div>
       </div>
       <div className="mb-4">
-      <h2 className="text-xl font-semibold mb-2">Parsed Content:</h2>
-      <div className="bg-gray-100 p-4 rounded dark:bg-gray-800">
-        {filteredContent.slice(0, visibleItems).map((item) => (
-          <div key={item.itemIndex} className="mb-2 bg-white rounded shadow dark:bg-gray-700">
-            <div className="flex justify-between items-center p-2 border-b dark:border-gray-600">
-              <h3 className="text-lg font-bold">{item.itemIndex + 1}</h3>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => toggleItemExpansion(item.itemIndex)}
-                  className="dark:text-white"
-                >
-                  {expandedItems[item.itemIndex] ? <ChevronUp /> : <ChevronDown />}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => deleteItem(item.itemIndex)}
-                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-600"
-                >
-                  <Trash className="h-4 w-4" />
-                </Button>
+        <h2 className="text-xl font-semibold mb-2">Parsed Content:</h2>
+        <div className="bg-gray-100 p-4 rounded dark:bg-gray-800">
+          {filteredContent.slice(0, visibleItems).map((item) => (
+            <div key={item.itemIndex} className="mb-2 bg-white rounded shadow dark:bg-gray-700">
+              <div className="flex justify-between items-center p-2 border-b dark:border-gray-600">
+                <h3 className="text-lg font-bold">{item.itemIndex + 1}</h3>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleItemExpansion(item.itemIndex)}
+                    className="dark:text-white"
+                  >
+                    {expandedItems[item.itemIndex] ? <ChevronUp /> : <ChevronDown />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteItem(item.itemIndex)}
+                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-600"
+                  >
+                    <Trash className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-            {expandedItems[item.itemIndex] && (
-              <div className="p-2">
-                {item.messages.map((msg: any, msgIndex: number) => (
-                  <div key={msgIndex} className="mb-2 border-b pb-2 last:border-b-0 last:pb-0">
-                    <div className="flex justify-between items-center mb-1">
-                      <div className="font-semibold text-sm">{msg.role}:</div>
-                      <div className="flex items-center space-x-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => moveMessage(item.itemIndex, msgIndex, -1)}
-                          disabled={msgIndex === 0}
-                        >
-                          <ArrowUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => moveMessage(item.itemIndex, msgIndex, 1)}
-                          disabled={msgIndex === item.messages.length - 1}
-                        >
-                          <ArrowDown className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteMessageContent(item.itemIndex, msgIndex)}
-                        >
-                          Clear
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteMessage(item.itemIndex, msgIndex)}
-                          className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-600"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
+              {expandedItems[item.itemIndex] && (
+                <div className="p-2">
+                  {item.messages.map((msg: any, msgIndex: number) => (
+                    <div key={msgIndex} className="mb-2 border-b pb-2 last:border-b-0 last:pb-0">
+                      <div className="flex justify-between items-center mb-1">
+                        <div className="font-semibold text-sm">{msg.role}:</div>
+                        <div className="flex items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => moveMessage(item.itemIndex, msgIndex, -1)}
+                            disabled={msgIndex === 0}
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => moveMessage(item.itemIndex, msgIndex, 1)}
+                            disabled={msgIndex === item.messages.length - 1}
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteMessageContent(item.itemIndex, msgIndex)}
+                          >
+                            Clear
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteMessage(item.itemIndex, msgIndex)}
+                            className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-600"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <textarea
-                      className="w-full p-2 border border-gray-300 rounded hover:border-blue-500 focus:border-blue-500 focus:outline-none transition duration-200 text-base dark:bg-gray-600 dark:text-white dark:border-gray-500"
-                      value={msg.content}
-                      onChange={(e) => {
-                        const updatedContent = [...parsedContent];
-                        updatedContent[item.itemIndex].messages[msgIndex].content = e.target.value;
-                        setParsedContent(updatedContent);
-                      }}
-                      style={{ minHeight: '100px' }}
-                      onInput={(e) => {
-                        const target = e.target as HTMLTextAreaElement;
-                        target.style.height = 'auto';
-                        target.style.height = target.scrollHeight + 'px';
-                      }}
-                    />
-                  </div>
-                ))}
-                <Button
-                  onClick={() => addMessage(item.itemIndex)}
-                  className="mt-2"
-                  size="sm"
-                >
-                  <Plus className="mr-2 h-4 w-4" /> Add Message
-                </Button>
-              </div>
-            )}
-          </div>
-        ))}
-        {visibleItems < filteredContent.length && (
-          <div ref={observerRef} className="h-10" />
-        )}
-      </div>
-    </div>
-      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
-        <DialogTrigger asChild>
-          <Button
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200 flex items-center"
-            onClick={handleExport}
-          >
-            <Download className="mr-2" />
-            Export JSONL
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-[725px] dark:bg-gray-800 dark:text-white">
-          <DialogHeader>
-            <DialogTitle>Exported JSONL Content</DialogTitle>
-          </DialogHeader>
-          <div className="mt-4">
-            <textarea
-              ref={exportTextAreaRef}
-              className="w-full h-[300px] p-2 border border-gray-300 rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
-              value={exportedContent}
-              readOnly
-            />
-          </div>
-          <div className="mt-4 flex justify-end">
-            <Button onClick={handleCopyToClipboard} className="flex items-center">
-              {isCopied ? <Check className="mr-2" /> : <Copy className="mr-2" />}
-              {isCopied ? 'Copied!' : 'Copy to Clipboard'}
-            </Button>
-            <Button onClick={() => {
-                const blob = new Blob([exportedContent], { type: 'application/json' });
-                const href = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = href;
-                link.download = 'exported_data.jsonl';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(href);
-              }} className="flex items-center ml-2">
-                <Download className="mr-2" />
-                Download JSONL
-              </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-    // </div>
-    // </div>
-  );
-};
-
-export default function Home() {
-  return (
-    <main className="h-full">
-      <JSONLEditor />
-    </main>
-  )
-}
+                      <textarea
+                                                className="w-full p-2 border border-gray-300 rounded hover:border-blue-500 focus:border-blue-500 focus:outline-none transition duration-200 text-base dark:bg-gray-600 dark:text-white dark:border-gray-500"
+                                                value={msg.content}
+                                                onChange={(e) => {
+                                                  const updatedContent = [...parsedContent];
+                                                  updatedContent[item.itemIndex].messages[msgIndex].content = e.target.value;
+                                                  setParsedContent(updatedContent);
+                                                }}
+                                                style={{ minHeight: '100px' }}
+                                                onInput={(e) => {
+                                                  const target = e.target as HTMLTextAreaElement;
+                                                  target.style.height = 'auto';
+                                                  target.style.height = target.scrollHeight + 'px';
+                                                }}
+                                              />
+                                            </div>
+                                          ))}
+                                          <Button
+                                            onClick={() => addMessage(item.itemIndex)}
+                                            className="mt-2"
+                                            size="sm"
+                                          >
+                                            <Plus className="mr-2 h-4 w-4" /> Add Message
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {visibleItems < filteredContent.length && (
+                                    <div ref={observerRef} className="h-10" />
+                                  )}
+                                </div>
+                              </div>
+                              <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+                                <DialogTrigger asChild>
+                                  <Button
+                                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200 flex items-center"
+                                    onClick={handleExport}
+                                  >
+                                    <Download className="mr-2" />
+                                    Export JSONL
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-[725px] dark:bg-gray-800 dark:text-white">
+                                  <DialogHeader>
+                                    <DialogTitle>Exported JSONL Content</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="mt-4">
+                                    <textarea
+                                      ref={exportTextAreaRef}
+                                      className="w-full h-[300px] p-2 border border-gray-300 rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                                      value={exportedContent}
+                                      readOnly
+                                    />
+                                  </div>
+                                  <div className="mt-4 flex justify-end">
+                                    <Button onClick={handleCopyToClipboard} className="flex items-center">
+                                      {isCopied ? <Check className="mr-2" /> : <Copy className="mr-2" />}
+                                      {isCopied ? 'Copied!' : 'Copy to Clipboard'}
+                                    </Button>
+                                    <Button onClick={() => {
+                                      const blob = new Blob([exportedContent], { type: 'application/json' });
+                                      const href = URL.createObjectURL(blob);
+                                      const link = document.createElement('a');
+                                      link.href = href;
+                                      link.download = 'exported_data.jsonl';
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                      URL.revokeObjectURL(href);
+                                    }} className="flex items-center ml-2">
+                                      <Download className="mr-2" />
+                                      Download JSONL
+                                    </Button>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </div>
+                          );
+                        };
+                        
+                        export default function Home() {
+                          return (
+                            <main className="h-full">
+                              <JSONLEditor />
+                            </main>
+                          )
+                        }
+                        
