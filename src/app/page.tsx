@@ -292,7 +292,8 @@ const JSONLEditor = () => {
   const [isCopied, setIsCopied] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('darkMode') === 'true';
+      const savedTheme = localStorage.getItem('theme');
+      return savedTheme === 'dark';
     }
     return false;
   });
@@ -302,12 +303,12 @@ const JSONLEditor = () => {
 
   useEffect(() => {
     if (darkMode) {
-      document.documentElement.classList.add('dark');
+      setTheme('dark');
     } else {
-      document.documentElement.classList.remove('dark');
+      setTheme('light');
     }
-    localStorage.setItem('darkMode', darkMode.toString());
-  }, [darkMode]);
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  }, [darkMode, setTheme]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
