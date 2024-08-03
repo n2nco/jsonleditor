@@ -290,6 +290,9 @@ const JSONLEditor = () => {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [showOnlyLatest, setShowOnlyLatest] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [itemExportContent, setItemExportContent] = useState("");
+  const [isItemExportDialogOpen, setIsItemExportDialogOpen] = useState(false);
+  const [exportingItemIndex, setExportingItemIndex] = useState<number | null>(null);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme');
@@ -298,8 +301,8 @@ const JSONLEditor = () => {
     return false;
   });
   const exportTextAreaRef = useRef<HTMLTextAreaElement>(null);
-  const [visibleItems, setVisibleItems] = useState(10);
-  const observerRef = useRef<HTMLDivElement>(null);
+  // const [visibleItems, setVisibleItems] = useState(10); // Render 10 items at a time
+  // const observerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (darkMode) {
@@ -310,26 +313,38 @@ const JSONLEditor = () => {
     localStorage.setItem('theme', darkMode ? 'dark' : 'light');
   }, [darkMode, setTheme]);
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setVisibleItems((prevVisibleItems) => prevVisibleItems + 10);
-        }
-      },
-      { threshold: 1 }
-    );
+  // useEffect(() => {
+  //   const observer = new IntersectionObserver(
+  //     (entries) => {
+  //       if (entries[0].isIntersecting) {
+  //         setVisibleItems((prevVisibleItems) => prevVisibleItems + 10);
+  //       }
+  //     },
+  //     { threshold: 1 }
+  //   );
 
-    if (observerRef.current) {
-      observer.observe(observerRef.current);
+  //   if (observerRef.current) {
+  //     observer.observe(observerRef.current);
+  //   }
+
+  //   return () => {
+  //     if (observerRef.current) {
+  //       observer.unobserve(observerRef.current);
+  //     }
+  //   };
+  // }, []); --------------------------------------------- Render 10 items at a time
+
+  const handleExportItem = (itemIndex: number) => {
+    try {
+      const item = parsedContent[itemIndex];
+      const jsonlString = JSON.stringify(item);
+      setItemExportContent(jsonlString);
+      setExportingItemIndex(itemIndex);
+      setIsItemExportDialogOpen(true);
+    } catch (err) {
+      setError("Error preparing JSONL for export: " + (err as Error).message);
     }
-
-    return () => {
-      if (observerRef.current) {
-        observer.unobserve(observerRef.current);
-      }
-    };
-  }, []);
+  };
 
   const parseJSONL = (content: string) => {
     try {
@@ -422,13 +437,24 @@ const JSONLEditor = () => {
     }
   };
 
-  const handleCopyToClipboard = () => {
-    if (exportTextAreaRef.current) {
+  // const handleCopyToClipboard = () => {
+  //   if (exportTextAreaRef.current) {
+  //     exportTextAreaRef.current.select();
+  //     document.execCommand('copy');
+  //     setIsCopied(true);
+  //     setTimeout(() => setIsCopied(false), 2000);
+  //   }
+  // };
+
+  const handleCopyToClipboard = (content: string, useRef: boolean = false) => {
+    if (useRef && exportTextAreaRef.current) {
       exportTextAreaRef.current.select();
       document.execCommand('copy');
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
+    } else {
+      navigator.clipboard.writeText(content);
     }
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   const getLatestMessages = (messages: any[]) => {
@@ -608,7 +634,8 @@ const JSONLEditor = () => {
       <div className="mb-4">
         <h2 className="text-xl font-semibold mb-2">Parsed Content:</h2>
         <div className="bg-gray-100 p-4 rounded dark:bg-gray-800">
-          {filteredContent.slice(0, visibleItems).map((item) => (
+          
+          {filteredContent.map((item) => (
             <div key={item.itemIndex} className="mb-2 bg-white rounded shadow dark:bg-gray-700">
               <div className="flex justify-between items-center p-2 border-b dark:border-gray-600">
                 <h3 className="text-lg font-bold">{item.itemIndex + 1}</h3>
@@ -620,6 +647,14 @@ const JSONLEditor = () => {
                     className="dark:text-white"
                   >
                     {expandedItems[item.itemIndex] ? <ChevronUp /> : <ChevronDown />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleExportItem(item.itemIndex)}
+                    className="dark:text-white"
+                  >
+                    <Download className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -699,9 +734,9 @@ const JSONLEditor = () => {
                                       )}
                                     </div>
                                   ))}
-                                  {visibleItems < filteredContent.length && (
+                                  {/* {visibleItems < filteredContent.length && (
                                     <div ref={observerRef} className="h-10" />
-                                  )}
+                                  )} */}
                                 </div>
                               </div>
                               <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
@@ -727,10 +762,10 @@ const JSONLEditor = () => {
                                     />
                                   </div>
                                   <div className="mt-4 flex justify-end">
-                                    <Button onClick={handleCopyToClipboard} className="flex items-center">
-                                      {isCopied ? <Check className="mr-2" /> : <Copy className="mr-2" />}
-                                      {isCopied ? 'Copied!' : 'Copy to Clipboard'}
-                                    </Button>
+                                  <Button onClick={() => handleCopyToClipboard(exportedContent, true)} className="flex items-center">
+                                    {isCopied ? <Check className="mr-2" /> : <Copy className="mr-2" />}
+                                    {isCopied ? 'Copied!' : 'Copy to Clipboard'}
+                                  </Button>
                                     <Button onClick={() => {
                                       const blob = new Blob([exportedContent], { type: 'application/json' });
                                       const href = URL.createObjectURL(blob);
@@ -748,6 +783,40 @@ const JSONLEditor = () => {
                                   </div>
                                 </DialogContent>
                               </Dialog>
+                              <Dialog open={isItemExportDialogOpen} onOpenChange={setIsItemExportDialogOpen}>
+                              <DialogContent className="sm:max-w-[725px] dark:bg-gray-800 dark:text-white">
+                                <DialogHeader>
+                                  <DialogTitle>Exported JSONL Content for Item {exportingItemIndex !== null ? exportingItemIndex + 1 : ''}</DialogTitle>
+                                </DialogHeader>
+                                <div className="mt-4">
+                                  <textarea
+                                    className="w-full h-[300px] p-2 border border-gray-300 rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                                    value={itemExportContent}
+                                    readOnly
+                                  />
+                                </div>
+                                <div className="mt-4 flex justify-end">
+                                  <Button onClick={() => handleCopyToClipboard(itemExportContent)} className="flex items-center">
+                                    {isCopied ? <Check className="mr-2" /> : <Copy className="mr-2" />}
+                                    {isCopied ? 'Copied!' : 'Copy to Clipboard'}
+                                  </Button>
+                                  <Button onClick={() => {
+                                    const blob = new Blob([itemExportContent], { type: 'application/json' });
+                                    const href = URL.createObjectURL(blob);
+                                    const link = document.createElement('a');
+                                    link.href = href;
+                                    link.download = `exported_item_${exportingItemIndex !== null ? exportingItemIndex + 1 : ''}.jsonl`;
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    URL.revokeObjectURL(href);
+                                  }} className="flex items-center ml-2">
+                                    <Download className="mr-2" />
+                                    Download JSONL
+                                  </Button>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
                             </div>
                           );
                         };
